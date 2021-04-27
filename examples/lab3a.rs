@@ -1,6 +1,7 @@
 #![allow(non_upper_case_globals)]
-use demo::*;
 use num_complex::Complex32;
+use ofdm::*;
+use utils::Analysis;
 
 const block_size: u32 = 0;
 const prefix_length: u32 = 0;
@@ -12,19 +13,22 @@ const guard_bands: bool = false;
 fn main() {
     use tap::Pipe;
 
-    utils::create_transmission(block_size)
-        // Encode the data
-        .pipe(|data| {
-            demo::transmit!(data: data.as_ref(), guard_bands)
+    let source_data = utils::create_transmission(block_size);
+
+    let received_data = source_data
+        .as_slice()
+        // 1) Encode the data
+        .pipe(|data: &[u8]| {
+            ofdm::encode!(data, guard_bands)
                 .into_iter()
                 .flat_map(|f| std::array::IntoIter::new(f))
                 .collect::<Vec<Complex32>>()
         })
-        // Pass through the channel
-        .pipe(|transmission| channel!(transmission, snr: 30.0))
-        // Receive and decode the samples
+        // 2) Pass through the channel
+        .pipe(|transmission| ofdm::channel!(transmission, snr: 30.0))
+        // 3) Receive and decode the samples
         .pipe(|samples| {
-            receive!(
+            ofdm::decode!(
                 samples,
                 block_size,
                 prefix_length,
@@ -34,4 +38,7 @@ fn main() {
                 guard_bands,
             )
         });
+
+    // Compare the sent data to the original
+    let analysis = Analysis::new(&source_data, &received_data);
 }

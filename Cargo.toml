@@ -1,2 +1,25 @@
-[workspace]
-members = ["./packages/demo"]
+[package]
+name = "ofdm"
+version = "0.0.0"
+authors = ["Jonathan Kelley <jkelleyrtp@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+nalgebra = "0.25.3"
+ndarray = "0.14.0"
+basic_dsp = "0.9.2"
+optargs = "0.1.1"
+num-complex = "0.4.0"
+thiserror = "1.0.24"
+anyhow = "1.0.39"
+tap = "1.0.1"
+lipsum = "0.7.0"
+
+[profile.dev]
+debug = 0
+
+[profile.release]
+incremental = true
+debug = 0 # Set this to 1 or 2 to get more useful backtraces in debugger.
