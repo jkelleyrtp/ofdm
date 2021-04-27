@@ -16,6 +16,13 @@ thiserror = "1.0.24"
 anyhow = "1.0.39"
 tap = "1.0.1"
 lipsum = "0.7.0"
+# uhd = "0.1.1"
+uhd = { path = "../uhd-rust/uhd" }
+argh = "0.1.4"
+
+log = "0.4.13"
+fern = { version = "0.6.0", features = ["colored"] }
+
 
 [profile.dev]
 debug = 0

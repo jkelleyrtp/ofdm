@@ -1,4 +1,4 @@
-# Realtime OFDM with CUDA Acceleration
+# Realtime OFDM with CUDA Acceleration, SIMD, and Rust
 
 This repository holds the code and whitepaper for my final Principles of Wireless project at Olin College of Engineering. This project implements a full, realtime, OFDM datalink between an Ettus B210 SDR receiver and transmitter.
 
@@ -16,12 +16,6 @@ To make it easier for fellow and future classmates, I've taken the liberty of bu
 
 
 Throughout the semester, we learned about wireless modulation and demodulation techniques, culminating in a final "mega" lab where we transmitted and received OFDM data with the Ettus B210 USRP. 
-# meme
-----
-when in doubt, buy $3600 of software defined radios, 2 gpu accelerated sbcs, a 3d printer, then learn Rust, systems programming, linear algebra, digital signal processing, and **finally** rewrite the entire WiFi stack to stream videos from one side of the room to the other.
-
-🤣
-
 
 ## Port Progress
 ---

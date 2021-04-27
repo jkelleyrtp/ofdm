@@ -11,5 +11,6 @@ use basic_dsp::*;
 /// Perform a fast fourier transform with constantly known array sizes
 pub fn fft<const LEN: usize>(data: &[Complex32; LEN]) -> [Complex32; LEN] {
     let g = Vec::from(data.clone());
+    todo!()
 }
 fn ifft() {}
