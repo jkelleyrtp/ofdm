@@ -3,8 +3,6 @@ use std::{io::Read, ops::IndexMut, usize};
 use num_complex::Complex32;
 use uhd::alloc_boxed_slice;
 
-use super::*;
-
 pub trait GetBitAt {
     fn get_bit_at(self, n: u8) -> bool;
     fn to_bools(self) -> [bool; 8];
@@ -86,6 +84,26 @@ pub fn create_transmission<const LEN: usize>() -> Box<[u8; LEN]> {
         .for_each(|(l, r)| *r = *l);
 
     out
+}
+
+pub fn debug_data(left: &[u8], right: &[u8]) {
+    left.iter()
+        .zip(right)
+        .enumerate()
+        .for_each(|(idx, (sent, received))| {
+            use colored::*;
+            let out = format!("> {:}\n{:#012b} \n{:#012b}", idx, sent, received);
+            match sent == received {
+                true => println!("{}", out.green()),
+                false => println!("{}", out.red()),
+            }
+        });
+}
+
+pub fn trim_to(mut received: Vec<u8>, block_size: usize) -> Vec<u8> {
+    // Only take as many samples as was sent
+    let _ = received.split_off(block_size);
+    received
 }
 
 #[cfg(test)]

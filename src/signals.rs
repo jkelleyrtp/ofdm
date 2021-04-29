@@ -11,7 +11,7 @@ pub trait Signal {
     fn fft(&mut self) {}
 
     /// Perform the inverse fast-foruier transform
-    fn ifft(&mut self) {}
+    fn ifft(&mut self);
 
     /// Shift the data using an fft_shift approach
     fn fft_shift(&mut self);
@@ -106,6 +106,7 @@ impl Signal for &[Complex32] {
     fn convolve(&self, other: &[Complex32]) -> Vec<Complex32> {
         convolution_safe(self, other)
     }
+    fn ifft(&mut self) {}
     fn fft_shift(&mut self) {}
 }
 

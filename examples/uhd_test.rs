@@ -65,7 +65,7 @@ pub fn start_receiving() -> Result<()> {
     //     .as_slice();
 
     let mut single_chan = vec![Complex32::default(); 1_000_000].into_boxed_slice();
-    receiver.receive_simple(single_chan.as_mut())?;
+    // receiver.receive_simple(single_chan.as_mut())?;
 
     log::info!("Samples received!");
 

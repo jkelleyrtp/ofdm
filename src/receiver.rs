@@ -1,3 +1,5 @@
+use std::{convert::TryInto, f32::consts::PI};
+
 use anyhow::Result;
 use basic_dsp::CrossCorrelationOps;
 use num_complex::Complex32;
@@ -20,19 +22,64 @@ pub fn decode(mut samples: Vec<Complex32>, guard_bands: Option<bool>) -> Vec<u8>
 
     // Pull out the locking signals and preamble signals
     let (locking, pre1, pre2, pre3) = (
-        chunk_iter.next(),
-        chunk_iter.next(),
-        chunk_iter.next(),
-        chunk_iter.next(),
+        chunk_iter.next().unwrap(),
+        chunk_iter.next().unwrap(),
+        chunk_iter.next().unwrap(),
+        chunk_iter.next().unwrap(),
     );
+
+    let f_delta = frequency_correction(pre1, pre2);
+    let mut h_k = estimate_channel(&locking);
+    h_k.iter_mut().enumerate().for_each(|(idx, f)| {
+        use crate::TMP2;
+        if idx < TMP2.len() {
+            *f = Complex32::new(TMP2[idx], 0.0);
+        } else {
+            *f = Complex32::new(0.1, 0.0);
+        }
+        //
+        // *f = *f * (Complex32::new(0.0, -1.0) * f_delta * ((idx as f32) - 22.0)).exp()
+    });
+
+    crate::plots::stem_plot(&h_k[..12]);
+    println!("\n");
+    crate::plots::draw_channel_plot();
+    dbg!(&f_delta);
 
     // Create a buffer to dump raw samples into
     let mut out_stream = Vec::new();
 
+    // Keep tracking of the sample index to correct its phase offset later
+    let mut sample_id = 329_f32;
+    // let mut sample_id = 9_f32;
+
     // Eat through all the chunks, decoding them and pushing them into our stream
     while let Some(next_chunk) = chunk_iter.next() {
-        let unprefixed = unprefix_block(next_chunk);
-        decode_block(unprefixed, guard_bands, &mut out_stream);
+        // Apply the channel estimate
+        next_chunk
+            .iter_mut()
+            .zip(h_k.iter())
+            .enumerate()
+            .for_each(|(_idx, (sample, chan))| {
+                // Apply the phase correction
+                let cor = (Complex32::new(0.0, -1.0) * f_delta * sample_id).exp();
+
+                *sample = *sample * cor;
+
+                // Apply the channel estimate correction
+                *sample /= chan;
+
+                sample_id += 1.0;
+            });
+
+        decode_block(
+            // Remove the prefix and fft the data
+            unprefix_block(next_chunk),
+            // Enable the guard_bands
+            guard_bands,
+            // And dump the results into the final complex stream
+            &mut out_stream,
+        );
     }
 
     // Convert our vec of Complex numbers into a vec of bytes
@@ -122,7 +169,43 @@ pub fn pad_chunk(remainder: &[Complex32]) -> [Complex32; 80] {
     out
 }
 
+pub fn estimate_channel(training_block: &[Complex32; 80]) -> [Complex32; 80] {
+    let original = crate::training_signals::<80>();
+
+    let estimate: [Complex32; 80] = training_block
+        .iter()
+        .zip(original.iter())
+        .map(|(new, old)| old / new)
+        .collect::<Vec<_>>()
+        .as_slice()
+        .try_into()
+        .unwrap();
+
+    estimate
+}
+
+pub fn frequency_correction(row1: &mut [Complex32; 80], row2: &mut [Complex32; 80]) -> f32 {
+    row1.iter()
+        .zip(row2.iter())
+        .map(|(l, r)| r / l)
+        .map(|f| angle(f))
+        .sum::<f32>()
+        .pipe(|f| f / 80.0)
+        .pipe(|f| f / 80.0)
+    // .norm()
+}
+
+fn angle(Complex32 { re, im }: Complex32) -> f32 {
+    im.atan2(re)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn angle_is_ok() {
+        // should be -0.7854
+        dbg!(angle(Complex32 { re: 1.0, im: -1.0 }));
+    }
 }

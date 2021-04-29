@@ -22,6 +22,8 @@ pub mod utils;
 
 pub mod logging;
 
+pub mod plots;
+
 #[cfg(test)]
 mod tests {
     use super::*;

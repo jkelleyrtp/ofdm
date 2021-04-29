@@ -6,7 +6,7 @@ use tap::Pipe;
 
 /// Prepare a data stream by encoding it into blocks, adding a preamble, and spacing it out for OFDM
 #[optargs::optfn]
-pub fn encode(data: &[u8], guard_bands: Option<bool>) -> Vec<[Complex32; 80]> {
+pub fn encode(data: &[u8], guard_bands: Option<bool>) -> Vec<Complex32> {
     let guard_bands = guard_bands.unwrap_or(false);
 
     // Build the transmission with the appropriate header
@@ -30,16 +30,15 @@ pub fn encode(data: &[u8], guard_bands: Option<bool>) -> Vec<[Complex32; 80]> {
             .pipe(|s| transmitter::encode_block(s, guard_bands))
             .pipe(|mut b| transmitter::prefix_block::<64, 16>(&mut b))
             .pipe(|b| transmission.push(b));
-
-        // dbg!(complex_stream.len());
     }
-
-    // dbg!(transmission.len());
 
     // Should we push something to denote the end of a block?
     // Or cap all transmissions to a known size?
     // Or push a size hint to the head of the packet?
     transmission
+        .into_iter()
+        .flat_map(|f| std::array::IntoIter::new(f))
+        .collect::<Vec<Complex32>>()
 }
 
 pub fn locking_signals<const LEN: usize>() -> [Complex32; LEN] {
