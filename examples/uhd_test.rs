@@ -55,8 +55,8 @@ pub fn start_receiving() -> Result<()> {
         .context("Failed to find properly open the USRP")?;
 
     // Set the stream type to be "fc32" which means "float complex 32"
+    // This gets overridden anyway, because we use the Compelex3D format
     // See: https://files.ettus.com/manual/structuhd_1_1stream__args__t.html#a602a64b4937a85dba84e7f724387e252
-
     let mut receiver = usrp.get_rx_stream(&uhd::StreamArgs::<Complex32>::new("fc32"))?;
 
     // let out_buffers = (0..receiver.num_channels())
@@ -64,7 +64,7 @@ pub fn start_receiving() -> Result<()> {
     //     .collect::<Vec<_>>()
     //     .as_slice();
 
-    let mut single_chan = vec![Complex32::default(); 1000].into_boxed_slice();
+    let mut single_chan = vec![Complex32::default(); 1_000_000].into_boxed_slice();
     receiver.receive_simple(single_chan.as_mut())?;
 
     log::info!("Samples received!");
