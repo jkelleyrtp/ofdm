@@ -4,8 +4,8 @@ use ofdm::*;
 use tap::{Pipe, Tap};
 use utils::Analysis;
 
-const block_size: usize = 32;
-const guard_bands: bool = false;
+const block_size: usize = 16;
+const guard_bands: bool = true;
 const timing_error: bool = true;
 
 fn main() {

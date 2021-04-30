@@ -3,7 +3,7 @@ use ofdm::*;
 use tap::Pipe;
 use utils::Analysis;
 
-const block_size: usize = 32;
+const block_size: usize = 64;
 const guard_bands: bool = false;
 
 fn main() {
@@ -14,7 +14,7 @@ fn main() {
         // 1) Encode the data
         .pipe(|data| ofdm::encode!(data, guard_bands))
         // 2) Pass through the channel
-        .pipe(|transmission| ofdm::channel!(transmission, snr: 1000.0))
+        .pipe(|transmission| ofdm::channel!(transmission, snr: 30.0))
         // 3) Receive and decode the samples
         .pipe(|samples| ofdm::decode!(samples, guard_bands))
         // 4) post-process the data

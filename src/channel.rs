@@ -1,6 +1,6 @@
 use std::f32::consts::PI;
 
-use crate::Signal;
+use crate::signals::*;
 use num_complex::Complex32;
 use rand::{Rng, SeedableRng};
 use tap::Pipe;
@@ -13,11 +13,8 @@ pub const TMP2: [f32; 12] = [
 ];
 
 #[optargs::optfn]
-pub fn channel(
-    transmission: Vec<Complex32>,
-    snr: Option<f32>,
-    timing_error: Option<bool>,
-) -> Vec<Complex32> {
+pub fn channel(transmission: SignalVec, snr: Option<f32>, timing_error: Option<bool>) -> SignalVec {
+    // let mut rng = rand::thread_rng();
     let mut rng = rand::rngs::StdRng::seed_from_u64(9999);
 
     let snr = 10_f32.powf((snr.unwrap_or_else(|| 30.0) / 10.0) as f32);
@@ -30,7 +27,7 @@ pub fn channel(
         .for_each(|(slot, t1)| *slot = Complex32::new(*t1, 0.0));
 
     // Convolve
-    let mut output = transmission.as_slice().convolve(&h);
+    let mut output = transmission.convolve(&h);
 
     if timing_error.unwrap_or_default() {
         let f_delta = PI * (rng.gen_range(0.0..1.0) / 64.0);
@@ -42,7 +39,7 @@ pub fn channel(
     }
 
     // Noise
-    let noise_var = output.as_slice().variance() / snr;
+    let noise_var = output.variance() / snr;
     for y in output.iter_mut() {
         *y = *y + (0.5 * noise_var).sqrt() * Complex32::new(rng.gen(), rng.gen());
     }
@@ -52,10 +49,9 @@ pub fn channel(
 
 #[test]
 fn channel_works() {
-    let samples = [1, 2, 3, 4, 5, 6, 7, 8]
-        .iter()
-        .map(|&f| Complex32::new(f as f32, 0.0))
-        .collect::<Vec<_>>();
+    let samples = SignalVec {
+        inner: [1, 2, 3, 4, 5, 6, 7, 8].to_signal().inner.to_vec(),
+    };
 
     let out = channel(samples, None, None);
 
