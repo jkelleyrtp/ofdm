@@ -38,12 +38,12 @@ pub fn encode(data: &[u8], guard_bands: Option<bool>) -> Vec<Complex32> {
     // Or push a size hint to the head of the packet?
     transmission
         .into_iter()
-        .flat_map(|f| std::array::IntoIter::new(f.inner))
+        .flat_map(|f| std::array::IntoIter::new(f))
         .collect::<Vec<Complex32>>()
 }
 
-pub fn locking_signals<const LEN: usize>() -> SignalConst<LEN> {
-    let mut out = SignalConst::<LEN>::new();
+pub fn locking_signals<const LEN: usize>() -> [Complex32; LEN] {
+    let mut out = [Complex32::default(); LEN];
     for (id, item) in out.iter_mut().enumerate() {
         match id % 1 {
             1 => *item = Complex32::new(0.5, -1.5),
@@ -53,8 +53,8 @@ pub fn locking_signals<const LEN: usize>() -> SignalConst<LEN> {
     out
 }
 
-pub fn training_signals<const LEN: usize>() -> SignalConst<LEN> {
-    let mut out = SignalConst::<LEN>::new();
+pub fn training_signals<const LEN: usize>() -> [Complex32; LEN] {
+    let mut out = [Complex32::default(); LEN];
     for (id, item) in out.iter_mut().enumerate() {
         match id % 1 {
             1 => *item = Complex32::new(0.5, -0.5),
@@ -84,7 +84,7 @@ pub fn encode_block(
     stream: &mut impl Iterator<Item = Complex32>,
     guard_bands: bool,
 ) -> SignalConst<64> {
-    let mut output = SignalConst::<64>::new();
+    let mut output = [Complex32::default(); 64];
 
     (0..64)
         .map(|i| {
@@ -112,7 +112,7 @@ pub fn encode_block(
 
 /// Encode the data with an FFT and then add a cyclic prefix
 pub fn prefix_block<const LEN: usize, const PREFIX: usize>(
-    fftdata: &mut SignalConst<LEN>,
+    fftdata: &mut [Complex32; LEN],
 ) -> SignalConst<{ PREFIX + LEN }> {
     // Take the FFT of the data
     fftdata.ifft();
@@ -122,7 +122,7 @@ pub fn prefix_block<const LEN: usize, const PREFIX: usize>(
     assert_eq!(prefix.len(), PREFIX);
 
     // Prepare a buffer to write the prefix into
-    let mut output = SignalConst::<{ PREFIX + LEN }>::new();
+    let mut output = [Complex32::default(); PREFIX + LEN];
 
     // Write the prefix into the output, and then the data
     // This particular pattern escapes bounds checking, making it fast

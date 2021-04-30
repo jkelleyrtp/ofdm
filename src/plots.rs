@@ -1,9 +1,9 @@
 use num_complex::Complex32;
 use textplots::*;
 
-use crate::{IntoSignal, SignalMut, SignalSlice};
+use crate::{IntoSignal, SignalMut};
 
-pub fn stem_plot(samples: SignalSlice) {
+pub fn stem_plot(samples: &[Complex32]) {
     let pts = samples
         .iter()
         .enumerate()
@@ -44,5 +44,5 @@ pub fn draw_channel_plot() {
     .map(|&f| Complex32::new(f, 0.0))
     .collect::<Vec<_>>();
 
-    stem_plot(vals);
+    stem_plot(&vals);
 }

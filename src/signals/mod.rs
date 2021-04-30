@@ -10,12 +10,9 @@ pub use impls::*;
 
 impl<T: AsMut<[Complex32]>> SignalMut for T {}
 impl<T: AsRef<[Complex32]>> SignalRef for T {}
-// impl<const LEN: usize> SignalRef for SignalConst<LEN> {}
-// impl<const LEN: usize> SignalMut for SignalConst<LEN> {}
-// impl SignalRef for SignalSlice<'_> {}
-// impl SignalMut for SignalSlice<'_> {}
-// impl SignalRef for SignalVec {}
-// impl SignalMut for SignalVec {}
+pub type SignalConst<const LEN: usize> = [Complex32; LEN];
+pub type SignalVec = Vec<Complex32>;
+pub type SignalSlice<'a> = &'a [Complex32];
 
 // Allow ergonomic conversions of arrays and vecs into signals
 pub trait IntoSignal {
@@ -93,8 +90,7 @@ pub trait SignalRef: AsRef<[Complex32]> {
 
         // never let the kernel fail
         if ker > vec {
-            todo!()
-            // return SignalRef::convolve(kernel, sample);
+            return kernel.convolve(self);
         }
 
         let result_len = sample.len() + kernel.len() - 1;
@@ -114,7 +110,7 @@ pub trait SignalRef: AsRef<[Complex32]> {
                 }
             }
         }
-        SignalVec { inner: conv }
+        conv
     }
 
     fn variance(&self) -> Complex32 {
@@ -257,14 +253,12 @@ mod tests {
             Complex32::new(1.0, 0.0),
             Complex32::new(2.0, 0.0),
             Complex32::new(3.0, 0.0),
-        ]
-        .to_signal();
+        ];
         let vals2 = [
             Complex32::new(4.0, 0.0),
             Complex32::new(5.0, 0.0),
             Complex32::new(6.0, 0.0),
-        ]
-        .to_signal();
+        ];
         let out = vals2.convolve(&vals1);
         dbg!(out);
     }
@@ -275,8 +269,7 @@ mod tests {
             Complex32::new(1.0, 1.0),
             Complex32::new(1.0, 2.0),
             Complex32::new(1.0, 3.0),
-        ]
-        .to_signal();
+        ];
 
         assert!(vals.mean() == Complex32::new(1.0, 2.0))
     }

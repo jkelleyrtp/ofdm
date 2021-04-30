@@ -13,7 +13,11 @@ pub const TMP2: [f32; 12] = [
 ];
 
 #[optargs::optfn]
-pub fn channel(transmission: SignalVec, snr: Option<f32>, timing_error: Option<bool>) -> SignalVec {
+pub fn channel(
+    transmission: Vec<Complex32>,
+    snr: Option<f32>,
+    timing_error: Option<bool>,
+) -> Vec<Complex32> {
     // let mut rng = rand::thread_rng();
     let mut rng = rand::rngs::StdRng::seed_from_u64(9999);
 
@@ -49,10 +53,7 @@ pub fn channel(transmission: SignalVec, snr: Option<f32>, timing_error: Option<b
 
 #[test]
 fn channel_works() {
-    let samples = SignalVec {
-        inner: [1, 2, 3, 4, 5, 6, 7, 8].to_signal().inner.to_vec(),
-    };
-
+    let samples = [1, 2, 3, 4, 5, 6, 7, 8].to_vec().to_signal();
     let out = channel(samples, None, None);
 
     dbg!(out);
