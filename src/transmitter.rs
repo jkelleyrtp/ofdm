@@ -1,78 +1,139 @@
-use super::*;
-// use crate::signals::*;
-use crate::signals::*;
+use std::convert::TryInto;
+
 use crate::utils::GetBitAt;
-use num_complex::Complex32;
+use crate::{packets::Header, signals::*};
+use num::complex::Complex64;
+use rand::{Rng, SeedableRng};
 use tap::Pipe;
 
 /// Prepare a data stream by encoding it into blocks, adding a preamble, and spacing it out for OFDM
 #[optargs::optfn]
-pub fn encode(data: &[u8], guard_bands: Option<bool>) -> Vec<Complex32> {
+pub fn encode(
+    data: &[u8],
+    guard_bands: Option<bool>,
+    modulation: Option<crate::ModulationScheme>,
+) -> Vec<Complex64> {
     let guard_bands = guard_bands.unwrap_or(false);
+    let modulation = modulation.unwrap_or(ModulationScheme::Bpsk);
 
-    // Build the transmission with the appropriate header
-    let mut transmission = Vec::<SignalConst<80>>::from([
-        // xcorr
-        transmitter::locking_signals(),
-        // preamble for channel estimate and frequency correction
-        transmitter::training_signals(),
-        transmitter::training_signals(),
-        transmitter::training_signals(),
-    ]);
+    let mut out_stream = Vec::new();
 
+    // Add the locking block
+    for _ in 0..1 {
+        out_stream.extend(locking_signal::<80>().iter());
+    }
+
+    // Add the preamble for frequency correction
+    for _ in 0..4 {
+        out_stream.extend(preamble::<80>().iter())
+    }
+
+    // Add the training signals for channel estimation
+    for _ in 0..5 {
+        out_stream.extend(prefix_block::<64, 16>(&mut training_signals::<64>()).iter());
+    }
+
+    // Add a header for the receiver to know how long the transmission is
+    let header = Header::new(data.len() as u128);
+    let header_bytes = bincode::serialize(&header).unwrap();
+
+    // First, add the header, and then
+    // Finally, add the transmission itself
     // Modulate the incoming byte stream in a complex stream
-    // TODO: enable hamming coding
-    let mut modulated = transmitter::modulate(data);
-    let mut complex_stream = modulated.drain(..).peekable();
-
     // Drain the complex stream into blocks for transmissions
+    let mut complex_stream = modulate(&header_bytes, &modulation)
+        .into_iter()
+        .chain(modulate(data, &modulation).into_iter())
+        .peekable();
+
     while complex_stream.peek().is_some() {
         (&mut complex_stream)
-            .pipe(|s| transmitter::encode_block(s, guard_bands))
-            .pipe(|mut b| transmitter::prefix_block::<64, 16>(&mut b))
-            .pipe(|b| transmission.push(b));
+            .pipe(|s| encode_block(s, guard_bands))
+            .pipe(|mut b| prefix_block::<64, 16>(&mut b))
+            .pipe(|b| out_stream.extend(b.iter()));
     }
 
-    // Should we push something to denote the end of a block?
-    // Or cap all transmissions to a known size?
-    // Or push a size hint to the head of the packet?
-    transmission
-        .into_iter()
-        .flat_map(|f| std::array::IntoIter::new(f))
-        .collect::<Vec<Complex32>>()
+    normalize(&mut out_stream);
+    out_stream
 }
 
-pub fn locking_signals<const LEN: usize>() -> [Complex32; LEN] {
-    let mut out = [Complex32::default(); LEN];
-    for (id, item) in out.iter_mut().enumerate() {
-        match id % 1 {
-            1 => *item = Complex32::new(0.5, -1.5),
-            _ => *item = Complex32::new(-0.5, 1.0),
-        }
+pub fn locking_signal<const LEN: usize>() -> [Complex64; LEN] {
+    let mut out = [Complex64::default(); LEN];
+
+    for (idx, o) in out.iter_mut().enumerate() {
+        let v = 0.5 * ((idx as f64) / (2.0 * LEN as f64) + 0.5);
+        *o = Complex64::new(v, 0.0);
+    }
+
+    // The fft shift produces the best cross correlation
+    out.fft_shift();
+
+    out
+}
+
+/// Create a pseudrandom sequence of numbers
+pub fn preamble<const LEN: usize>() -> [Complex64; LEN] {
+    let mut rng = rand::rngs::StdRng::seed_from_u64(100);
+    let mut out = [Complex64::default(); LEN];
+
+    for o in out.iter_mut() {
+        *o = Complex64::new(rng.gen_range(-1.0..1.0), rng.gen_range(-1.0..1.0)) * 0.25;
+    }
+
+    out
+}
+
+/// Create an alternating set of complex numbers.
+/// This will be used as a known set of data to lock onto later.
+pub fn training_signals<const LEN: usize>() -> [Complex64; LEN] {
+    let mut rng = rand::rngs::StdRng::seed_from_u64(50);
+    let mut out = [Complex64::default(); LEN];
+
+    for o in out.iter_mut() {
+        *o = Complex64::new(rng.gen_range(-1.0..1.0), rng.gen_range(-1.0..1.0)) * 1.0;
     }
     out
 }
 
-pub fn training_signals<const LEN: usize>() -> [Complex32; LEN] {
-    let mut out = [Complex32::default(); LEN];
-    for (id, item) in out.iter_mut().enumerate() {
-        match id % 1 {
-            1 => *item = Complex32::new(0.5, -0.5),
-            _ => *item = Complex32::new(-0.5, 0.5),
-        }
-    }
-    out
+pub enum ModulationScheme {
+    Bpsk,
+    Qpsk,
+
+    // Only 16 qam is implemented
+    Qam,
 }
 
 // This modulates a bit stream into a Vec of complex values.
 // This method currently uses BPSK modulation.
-pub fn modulate(stream: &[u8]) -> Vec<Complex32> {
+pub fn modulate(stream: &[u8], scheme: &ModulationScheme) -> Vec<Complex64> {
     let mut out = Vec::with_capacity(stream.len() * 8);
-    for bit in stream {
-        bit.to_bools().iter().for_each(|b| match b {
-            true => out.push(Complex32::new(1.0, 0.0)),
-            false => out.push(Complex32::new(-1.0, 0.0)),
-        });
+
+    match scheme {
+        ModulationScheme::Bpsk => {
+            for byte in stream {
+                byte.to_bools().iter().for_each(|b| match b {
+                    true => out.push(Complex64::new(1.0, 0.0)),
+                    false => out.push(Complex64::new(-1.0, 0.0)),
+                });
+            }
+        }
+
+        // TODO
+        ModulationScheme::Qpsk => {
+            for byte in stream {
+                byte.to_bools()
+                    .array_chunks::<2>()
+                    .for_each(|&[l, r]| match (l, r) {
+                        (true, true) => out.push(Complex64::new(1.0, 1.0)),
+                        (true, false) => out.push(Complex64::new(1.0, -1.0)),
+                        (false, true) => out.push(Complex64::new(-1.0, 1.0)),
+                        (false, false) => out.push(Complex64::new(-1.0, -1.0)),
+                    });
+            }
+        }
+
+        // TODO
+        ModulationScheme::Qam => {}
     }
 
     out
@@ -81,55 +142,85 @@ pub fn modulate(stream: &[u8]) -> Vec<Complex32> {
 /// remove encoded data from the stream and write it to a block
 /// Adds guardbands, preamble, and cyclic prefix
 pub fn encode_block(
-    stream: &mut impl Iterator<Item = Complex32>,
+    stream: &mut impl Iterator<Item = Complex64>,
     guard_bands: bool,
 ) -> SignalConst<64> {
-    let mut output = [Complex32::default(); 64];
+    let mut out = [Complex64::default(); 64];
 
-    (0..64)
-        .map(|i| {
-            match (
-                guard_bands,
-                // Write 0s at the start, end, and at the dc offset
-                i >= 59 || i <= 5 || i == 32,
-                // Write 1s at intermediate guardbands
-                i == 6 || i == 25 || i == 39 || i == 58,
-            ) {
-                (true, true, _) => Complex32::new(0.0, 0.0),
-                (true, _, true) => Complex32::new(1.0, 0.0),
-                // Just take the next off the top, filling zeros if the data buffer is empty
-                (_, _, _) => match stream.next() {
-                    Some(a) => a,
-                    None => Complex32::new(0.0, 0.0),
-                },
+    for i in 0..64 {
+        out[i] = match i {
+            // dc offset, sidebands, just skip
+            i if guard_bands && (i >= 59 || i <= 5 || i == 32) => Complex64::new(0.0, 0.0),
+
+            // pilot tones
+            i if guard_bands && (i == 6 || i == 25 || i == 39 || i == 58) => {
+                Complex64::new(1.0, 0.0)
             }
-        })
-        .zip(output.iter_mut())
-        .for_each(|(data, slot)| *slot = data);
 
-    output
+            _ => stream.next().unwrap_or_else(|| Complex64::new(0.0, 0.0)),
+        }
+    }
+
+    out
 }
 
 /// Encode the data with an FFT and then add a cyclic prefix
 pub fn prefix_block<const LEN: usize, const PREFIX: usize>(
-    fftdata: &mut [Complex32; LEN],
+    fftdata: &mut [Complex64; LEN],
 ) -> SignalConst<{ PREFIX + LEN }> {
-    // Take the FFT of the data
     fftdata.ifft();
+    let mut out = [Complex64::default(); PREFIX + LEN];
 
-    // Grab the last N points from the fftdata array
-    let prefix = fftdata.iter().rev().take(PREFIX).rev();
-    assert_eq!(prefix.len(), PREFIX);
-
-    // Prepare a buffer to write the prefix into
-    let mut output = [Complex32::default(); PREFIX + LEN];
-
-    // Write the prefix into the output, and then the data
-    // This particular pattern escapes bounds checking, making it fast
-    prefix
+    (&fftdata[(LEN - PREFIX)..])
+        .iter()
         .chain(fftdata.iter())
-        .zip(output.iter_mut())
-        .for_each(|(item, slot)| *slot = *item);
+        .enumerate()
+        .for_each(|(idx, &f)| out[idx] = f);
 
-    output
+    out
+}
+
+pub fn normalize(data: &mut Vec<Complex64>) -> &mut Vec<Complex64> {
+    let mut max: f64 = 0.0;
+    for f in data.iter() {
+        max = f64::max(f.re, max);
+        max = f64::max(f.im, max);
+    }
+    for f in data.iter_mut() {
+        f.re = f.re / max;
+        f.im = f.im / max;
+    }
+    data
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::plots::stem_plot;
+
+    use super::*;
+
+    #[test]
+    fn cyclic_prefix_works() {
+        let mut i = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].to_signal();
+        let out = prefix_block::<10, 3>(&mut i);
+        dbg!(out);
+    }
+
+    #[test]
+    fn locking_signals_arent_crazy_high() {
+        let sig = locking_signal::<80>();
+        stem_plot(&sig);
+    }
+
+    #[test]
+    fn bands_work() {
+        let data = (0..52).collect::<Vec<_>>().to_signal();
+        // let data: [Complex64; 52] = (0..52).collect::<Vec<_>>().to_signal().try_into().unwrap();
+
+        let mut data_iter = data.into_iter();
+
+        let mut out = encode_block(&mut data_iter, true);
+        dbg!(out.reals());
+        dbg!(out.fft_shift().reals());
+    }
 }

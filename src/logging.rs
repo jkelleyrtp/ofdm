@@ -20,11 +20,12 @@ pub fn set_up_logging(binname: &'static str) {
     fern::Dispatch::new()
         .format(move |out, message, record| {
             out.finish(format_args!(
-                "{color_line}[{level}{color_line}] {message}\x1B[0m",
+                "{color_line}[{level}{color_line}]{tim} {message}\x1B[0m",
                 color_line = format_args!(
                     "\x1B[{}m",
                     colors_line.get_color(&record.level()).to_fg_str()
                 ),
+                tim = chrono::Local::now().format("[%H:%M:%S:%f]"),
                 level = colors_level.color(record.level()),
                 message = message,
             ));
@@ -43,7 +44,7 @@ pub fn set_up_logging(binname: &'static str) {
         // output to stdout
         .chain(std::io::stdout())
         .apply()
-        .unwrap();
+        .expect("failed to initialize loggin");
 
-    debug!("finished setting up logging! yay!");
+    debug!("logging intiialized from ofdm");
 }
