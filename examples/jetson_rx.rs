@@ -13,13 +13,11 @@ use uhd::{self, StreamCommand, StreamCommandType, StreamTime, TuneRequest, Usrp}
 
 const CHANNEL_SELECT: usize = 0;
 const SAMPLE_RATE: f64 = 1e6;
-const NUM_SAMPLES: usize = 3_000_000;
+const NUM_SAMPLES: usize = 2_000_000;
 const FREQUENCY: f64 = 915e6;
-// const FREQUENCY: f64 = 2.4e9;
 
 const guard_bands: bool = true;
 const modulation: ModulationScheme = ModulationScheme::Bpsk;
-// const modulation: ModulationScheme = ModulationScheme::Qpsk;
 
 type SharedBuffer = Vec<Complex64>;
 
@@ -93,14 +91,7 @@ fn main() -> Result<()> {
             let data = res_data.unwrap();
 
             let mut bytes_iter = data.into_iter();
-            // let decoded = crate::utils::decipher_transmision_colorspace(500, data, true);
-            // let decoded = crate::utils::decipher_transmission_text(900, data, true);
 
-            // if let Some(text) = decoded {
-            //     use colored::Colorize;
-            //     println!("{}", text.green());
-            // todo!("I didn't think we get this far {}", text);
-            // }
             log::debug!("bytes: {}", bytes_iter.len());
             let decoded = crate::utils::decipher_transmision_colorspace(&mut bytes_iter, true);
             if let Some(img) = decoded {

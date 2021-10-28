@@ -49,17 +49,19 @@ fn image_to_custom_colorspace() {
 
     let (dims, out_bytes) = gif_to_bytestream(bits);
 
-    let mut out_file = OpenOptions::new()
-        .write(true)
-        .create(true)
-        .append(false)
-        .open("support/dancing.bytes")
-        .unwrap();
+    for (id, frame) in out_bytes.into_iter().enumerate() {
+        let mut out_file = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .append(false)
+            .open(format!("support/dancing_{}.bytes", id))
+            .unwrap();
 
-    let first_frame = out_bytes.first().unwrap();
-    out_file.write_all(first_frame).unwrap();
+        // let first_frame = out_bytes.first().unwrap();
+        out_file.write_all(&frame).unwrap();
+    }
 
-    dbg!(out_bytes.len());
+    // dbg!(out_bytes.len());
 }
 
 pub fn gif_to_bytestream(bytes: &[u8]) -> ((u32, u32), Vec<Vec<u8>>) {

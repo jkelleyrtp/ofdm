@@ -1,5 +1,6 @@
 use num::complex::Complex64;
 
+use crate::utils;
 use crate::{packets::Header, plots};
 use crate::{plots::stem_plot, signals::*, transmitter};
 use transmitter::ModulationScheme;
@@ -37,6 +38,8 @@ pub fn decode(
     // Calculate the frequency offset
     let f_delta = dbg!(frequency_correction(&chunks[3], &chunks[4]));
 
+    utils::write_to_numpy_file(&chunks[6], "preq_correction_3a");
+
     // Apply the frequency offset
     let mut sample_id = 0;
     for chunk in &mut chunks {
@@ -46,9 +49,13 @@ pub fn decode(
         }
     }
 
+    utils::write_to_numpy_file(&chunks[6], "post_correction_3a");
+
     assert_eq!(sample_id, chunks.len() * 80);
 
     let h_k = estimate_channel(&chunks[5..10]);
+
+    utils::write_to_numpy_file(&h_k, "hk_estimate_3a");
     // stem_plot(&h_k);
 
     dbg!(&f_delta);
@@ -65,6 +72,10 @@ pub fn decode(
         // Decode the block and push it into the output stream
         decode_block(unprefixed, &h_k, guard_bands, &mut out_stream);
     }
+
+    utils::write_to_numpy_file(&out_stream, "no_phaseoffset");
+    // utils::write_to_numpy_file(&out_stream, "with_phasoffset");
+    // utils::write_to_numpy_file(&out_stream, "decoded_3a");
 
     // plots::constellation(&out_stream[..230 * 8]);
 
@@ -286,5 +297,17 @@ mod tests {
 
         let g = samples.xcorr_fft([1, 2, 3, 4].to_signal());
         dbg!(g);
+    }
+
+    fn im(a: i32, b: i32) -> Complex64 {
+        Complex64::new(a as f64, b as f64)
+    }
+
+    #[test]
+    fn assign() {
+        // shorthand for re/im syntax
+        let cmplx = im(1, -3);
+
+        dbg!(cmplx);
     }
 }

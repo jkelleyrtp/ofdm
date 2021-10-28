@@ -3,10 +3,10 @@ use colored::Colorize;
 use ofdm::*;
 use tap::{Pipe, Tap};
 
-const num_bytes: usize = 600;
-const guard_bands: bool = true;
+const num_bytes: usize = 400;
+const guard_bands: bool = false;
 const timing_error: bool = true;
-const ecc_enabled: bool = true;
+const ecc_enabled: bool = false;
 const modulation: ModulationScheme = ModulationScheme::Qpsk;
 
 fn main() {

@@ -4,8 +4,8 @@ use ofdm::*;
 use tap::{Pipe, Tap};
 
 const num_bytes: usize = 400;
-const guard_bands: bool = true;
-const ecc_enabled: bool = true;
+const guard_bands: bool = false;
+const ecc_enabled: bool = false;
 const modulation: ModulationScheme = ModulationScheme::Qpsk;
 
 fn main() {
@@ -15,8 +15,16 @@ fn main() {
     (&source_data)
         // 1) Encode the data
         .pipe(|data| ofdm::encode!(data: &data, guard_bands, modulation))
+        .tap(|f| {
+            //
+            utils::write_to_numpy_file(f, "transmission_3a");
+        })
         // 2) Pass through the channel
         .pipe(|transmission| ofdm::channel!(transmission, snr: 30.0))
+        .tap(|f| {
+            //
+            utils::write_to_numpy_file(f, "channeled_3a");
+        })
         // 3) Receive and decode the samples
         .pipe(|samples| ofdm::decode!(samples, guard_bands, modulation).expect("Failed to decode"))
         // 4) print out the analysis

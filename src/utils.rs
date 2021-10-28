@@ -2,6 +2,8 @@ use std::usize;
 
 use num::complex::Complex64;
 
+use crate::SignalRef;
+
 pub trait GetBitAt {
     fn get_bit_at(self, n: u8) -> bool;
     fn to_bools(self) -> [bool; 8];
@@ -251,11 +253,30 @@ pub unsafe fn bytes_to_sig(input: Vec<u8>) -> Vec<Complex64> {
     out
 }
 
+pub fn write_to_numpy_file(data: &[Complex64], filename: &'static str) -> anyhow::Result<()> {
+    let reals = data.reals();
+    let imag = data.imag();
+
+    npy::to_file(format!("data/simulated/{}_reals.npy", filename), reals)?;
+    npy::to_file(format!("data/simulated/{}_imag.npy", filename), imag)?;
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use crate::IntoSignal;
 
     use super::*;
+
+    #[test]
+    fn write_to_file() {
+        let data = [(6, -1), (5, -2), (4, -3), (3, -4), (2, -5), (1, -6)]
+            .to_vec()
+            .to_signal();
+
+        write_to_numpy_file(&data, "test").unwrap();
+    }
 
     #[test]
     fn get_bit_at_is_right() {
